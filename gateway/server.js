@@ -22,7 +22,8 @@ function makeProxy(target) {
   return createProxyMiddleware({
     target,
     changeOrigin: true,
-    logLevel: 'silent'
+    logLevel: 'silent',
+    proxyTimeout: 10000
   });
 }
 
@@ -32,10 +33,37 @@ const logsProxy = makeProxy(process.env.LOGS_URL);
 const adminProxy = makeProxy(process.env.ADMIN_URL);
 
 /*   Route forwarding */
-app.use('/api/users', usersProxy);
-app.use('/api/report', costsProxy);
-app.use('/api/logs', logsProxy);
-app.use('/api/about', adminProxy);
+app.use(
+  createProxyMiddleware('/api/users', {
+    target: process.env.USERS_URL,
+    changeOrigin: true,
+    logLevel: 'silent'
+  })
+);
+
+app.use(
+  createProxyMiddleware('/api/report', {
+    target: process.env.COSTS_URL,
+    changeOrigin: true,
+    logLevel: 'silent'
+  })
+);
+
+app.use(
+  createProxyMiddleware('/api/logs', {
+    target: process.env.LOGS_URL,
+    changeOrigin: true,
+    logLevel: 'silent'
+  })
+);
+
+app.use(
+  createProxyMiddleware('/api/about', {
+    target: process.env.ADMIN_URL,
+    changeOrigin: true,
+    logLevel: 'silent'
+  })
+);
 
 /*   /api/add router */
 app.post('/api/add', (req, res, next) => {
