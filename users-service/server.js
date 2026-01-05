@@ -1,5 +1,7 @@
 'use strict';
 
+const { logEveryRequest } = require('./src/logClient');
+
 const express = require('express');
 const dotenv = require('dotenv');
 const mongoose = require('mongoose');
@@ -31,6 +33,8 @@ app.use(
     }
   })
 );
+
+app.use(logEveryRequest('users-service', process.env.LOGS_URL));
 
 /*   Health check endpoint */
 app.get('/health', (req, res) => {

@@ -1,5 +1,7 @@
 'use strict';
 
+const { logEveryRequest } = require('./src/logClient');
+
 const express = require('express');
 const dotenv = require('dotenv');
 const pinoHttp = require('pino-http');
@@ -11,6 +13,7 @@ const app = express();
 
 app.use(express.json({ limit: '1mb' }));
 app.use(pinoHttp());
+app.use(logEveryRequest('gateway', process.env.LOGS_URL));
 
 // Health check
 app.get('/health', (req, res) => {
