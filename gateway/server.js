@@ -12,60 +12,47 @@ const app = express();
 app.use(express.json({ limit: '1mb' }));
 app.use(pinoHttp());
 
-/*   Health check */
+// Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-/*   Helper for proxy creation */
-function makeProxy(target) {
+// Ensure env exists (clear error message)
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error('Missing env var: ' + name);
+  }
+  return value;
+}
+
+const USERS_URL = requireEnv('USERS_URL');
+const COSTS_URL = requireEnv('COSTS_URL');
+const LOGS_URL = requireEnv('LOGS_URL');
+const ADMIN_URL = requireEnv('ADMIN_URL');
+
+// Create a proxy that only runs for a specific /api/... prefix
+function makePrefixProxy(prefix, target) {
   return createProxyMiddleware({
     target,
     changeOrigin: true,
     logLevel: 'silent',
-    proxyTimeout: 10000
+    proxyTimeout: 10000,
+
+    // Only proxy requests that start with the prefix
+    pathFilter: function pathFilter(pathname, req) {
+      return typeof pathname === 'string' && pathname.startsWith(prefix);
+    }
   });
 }
 
-const usersProxy = makeProxy(process.env.USERS_URL);
-const costsProxy = makeProxy(process.env.COSTS_URL);
-const logsProxy = makeProxy(process.env.LOGS_URL);
-const adminProxy = makeProxy(process.env.ADMIN_URL);
+// Forward routes (keeps the full original path, e.g. /api/logs stays /api/logs)
+app.use(makePrefixProxy('/api/users', USERS_URL));
+app.use(makePrefixProxy('/api/report', COSTS_URL));
+app.use(makePrefixProxy('/api/logs', LOGS_URL));
+app.use(makePrefixProxy('/api/about', ADMIN_URL));
 
-/*   Route forwarding */
-app.use(
-  createProxyMiddleware('/api/users', {
-    target: process.env.USERS_URL,
-    changeOrigin: true,
-    logLevel: 'silent'
-  })
-);
-
-app.use(
-  createProxyMiddleware('/api/report', {
-    target: process.env.COSTS_URL,
-    changeOrigin: true,
-    logLevel: 'silent'
-  })
-);
-
-app.use(
-  createProxyMiddleware('/api/logs', {
-    target: process.env.LOGS_URL,
-    changeOrigin: true,
-    logLevel: 'silent'
-  })
-);
-
-app.use(
-  createProxyMiddleware('/api/about', {
-    target: process.env.ADMIN_URL,
-    changeOrigin: true,
-    logLevel: 'silent'
-  })
-);
-
-/*   /api/add router */
+// /api/add router: decide user vs cost by body fields, then forward to correct service
 app.post('/api/add', (req, res, next) => {
   const body = req.body || {};
 
@@ -82,11 +69,21 @@ app.post('/api/add', (req, res, next) => {
     body.sum !== undefined;
 
   if (isUserAdd) {
-    return usersProxy(req, res, next);
+    return createProxyMiddleware({
+      target: USERS_URL,
+      changeOrigin: true,
+      logLevel: 'silent',
+      proxyTimeout: 10000
+    })(req, res, next);
   }
 
   if (isCostAdd) {
-    return costsProxy(req, res, next);
+    return createProxyMiddleware({
+      target: COSTS_URL,
+      changeOrigin: true,
+      logLevel: 'silent',
+      proxyTimeout: 10000
+    })(req, res, next);
   }
 
   return res.status(400).json({
@@ -95,12 +92,15 @@ app.post('/api/add', (req, res, next) => {
   });
 });
 
-/*   Error handler */
+// Error handler
 app.use((err, req, res, next) => {
-  req.log.error({ err }, 'gateway error');
+  if (req.log && req.log.error) {
+    req.log.error({ err }, 'gateway error');
+  }
+
   res.status(500).json({
     id: 5002,
-    message: 'Gateway error'
+    message: err && err.message ? err.message : 'Gateway error'
   });
 });
 
