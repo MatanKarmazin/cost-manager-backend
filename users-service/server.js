@@ -9,6 +9,9 @@ const pinoHttp = require('pino-http');
 
 dotenv.config();
 
+const { buildLogPayload, sendLog } = require('./src/logClient');
+const LOGS_URL = (process.env.LOGS_URL || '').trim();
+
 const app = express();
 
 app.use(express.json({ limit: '1mb' }));
@@ -34,7 +37,28 @@ app.use(
   })
 );
 
-app.use(logEveryRequest('users-service', process.env.LOGS_URL));
+app.use((req, res, next) => {
+  const start = Date.now();
+
+  res.on('finish', () => {
+    const durationMs = Date.now() - start;
+
+    const payload = buildLogPayload(
+      'users-service',
+      req,
+      res,
+      durationMs,
+      'endpoint accessed'
+    );
+
+    sendLog(LOGS_URL, payload);
+  });
+
+  next();
+});
+
+
+app.use(logEveryRequest('users-service', LOGS_URL));
 
 /*   Health check endpoint */
 app.get('/health', (req, res) => {

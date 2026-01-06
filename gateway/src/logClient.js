@@ -1,8 +1,8 @@
 'use strict';
 
-function buildLogFromRequest(req, res, startMs, serviceName) {
-  const durationMs = Date.now() - startMs;
+const axios = require('axios');
 
+function buildLogPayload(serviceName, req, res, durationMs, message) {
   return {
     timestamp: new Date().toISOString(),
     service: serviceName,
@@ -12,7 +12,7 @@ function buildLogFromRequest(req, res, startMs, serviceName) {
     duration_ms: durationMs,
     ip: req.ip || '',
     user_agent: String(req.headers['user-agent'] || ''),
-    message: 'request received'
+    message: message || 'request received'
   };
 }
 
@@ -22,30 +22,10 @@ async function sendLog(logsUrl, payload) {
   }
 
   try {
-    // Node 18+ has fetch built-in (you’re on Node 24, so you’re good)
-    await fetch(logsUrl + '/api/logs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+    await axios.post(`${logsUrl}/api/logs`, payload, { timeout: 2000 });
   } catch (e) {
-    // Never break the request because logging failed
+    // Do nothing - logging should never break the service
   }
 }
 
-function logEveryRequest(serviceName, logsBaseUrl) {
-  return function logMiddleware(req, res, next) {
-    const start = Date.now();
-
-    res.on('finish', () => {
-      const payload = buildLogFromRequest(req, res, start, serviceName);
-      sendLog(logsBaseUrl, payload);
-    });
-
-    next();
-  };
-}
-
-module.exports = {
-  logEveryRequest
-};
+module.exports = { buildLogPayload, sendLog };

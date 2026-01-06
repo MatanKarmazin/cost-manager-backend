@@ -4,14 +4,48 @@ const express = require('express');
 const dotenv = require('dotenv');
 const mongoose = require('mongoose');
 const pinoHttp = require('pino-http');
+
 const { Cost } = require('./models/cost.model');
+const { logEveryRequest, buildLogPayload, sendLog } = require('./src/logClient');
 
 dotenv.config();
 
-const app = express();
+const LOGS_URL = (process.env.LOGS_URL || '').trim();
+
+const app = express(); // ✅ app must be initialized before any app.use
 
 app.use(express.json({ limit: '1mb' }));
 app.use(pinoHttp());
+
+/* custom request -> logs-service payload */
+app.use((req, res, next) => {
+  const start = Date.now();
+
+  res.on('finish', () => {
+    const durationMs = Date.now() - start;
+
+    try {
+      const payload = buildLogPayload(
+        'costs-service',
+        req,
+        res,
+        durationMs,
+        'endpoint accessed'
+      );
+
+      if (LOGS_URL) {
+        sendLog(LOGS_URL, payload);
+      }
+    } catch (e) {
+      // don't crash if logging fails
+    }
+  });
+
+  next();
+});
+
+/* your middleware (must be after app exists) */
+app.use(logEveryRequest('costs-service', LOGS_URL));
 
 // Health
 app.get('/health', (req, res) => {
@@ -31,7 +65,7 @@ function isPast(d) {
 
 /*
   POST /api/add (cost item)
-  body: { userid, description, category, sum }
+  body: { userid, description, category, sum, created_at? }
 */
 app.post('/api/add', async (req, res) => {
   try {
@@ -50,7 +84,12 @@ app.post('/api/add', async (req, res) => {
       return errorJson(res, 400, 4002, 'description is required');
     }
     if (!CATEGORIES.includes(category)) {
-      return errorJson(res, 400, 4003, `category must be one of: ${CATEGORIES.join(', ')}`);
+      return errorJson(
+        res,
+        400,
+        4003,
+        `category must be one of: ${CATEGORIES.join(', ')}`
+      );
     }
     if (!Number.isFinite(sum)) {
       return errorJson(res, 400, 4004, 'sum must be a number');
@@ -76,7 +115,6 @@ app.post('/api/add', async (req, res) => {
       created_at: createdAt
     });
 
-    // Return JSON with same property names as in DB
     return res.status(201).json({
       userid: doc.userid,
       description: doc.description,
@@ -93,7 +131,9 @@ app.post('/api/add', async (req, res) => {
 const port = Number(process.env.PORT || 3002);
 
 mongoose
-  .connect(process.env.MONGO_URI, { dbName: process.env.DB_NAME || 'cost_manager' })
+  .connect(process.env.MONGO_URI, {
+    dbName: process.env.DB_NAME || 'cost_manager'
+  })
   .then(() => {
     app.listen(port, () => {
       // eslint-disable-next-line no-console

@@ -7,10 +7,33 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 
 dotenv.config();
 
+const { buildLogPayload, sendLog } = require('./src/logClient');
+const LOGS_URL = requireEnv('LOGS_URL');
+
 const app = express();
 
 app.use(express.json({ limit: '1mb' }));
 app.use(pinoHttp());
+
+app.use((req, res, next) => {
+  const start = Date.now();
+
+  res.on('finish', () => {
+    const durationMs = Date.now() - start;
+
+    const payload = buildLogPayload(
+      'gateway',
+      req,
+      res,
+      durationMs,
+      'endpoint accessed'
+    );
+
+    sendLog(LOGS_URL, payload);
+  });
+
+  next();
+});
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
@@ -26,7 +49,6 @@ function requireEnv(name) {
 
 const USERS_URL = requireEnv('USERS_URL');
 const COSTS_URL = requireEnv('COSTS_URL');
-const LOGS_URL = requireEnv('LOGS_URL');
 const ADMIN_URL = requireEnv('ADMIN_URL');
 
 // This is the important part: when proxying, re-send the JSON body

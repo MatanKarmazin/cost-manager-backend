@@ -1,45 +1,39 @@
 'use strict';
 
-function buildLogFromRequest(req, res, startMs, serviceName) {
-  const durationMs = Date.now() - startMs;
+const axios = require('axios');
 
+function buildLogPayload(serviceName, req, res, durationMs, message) {
   return {
-    timestamp: new Date().toISOString(),
-    service: serviceName,
-    method: req.method,
-    path: req.originalUrl || req.url,
-    status: res.statusCode,
-    duration_ms: durationMs,
-    ip: req.ip || '',
-    user_agent: String(req.headers['user-agent'] || ''),
-    message: 'request received'
+    service: String(serviceName || 'unknown'),
+    method: String(req.method || ''),
+    path: String(req.originalUrl || req.url || ''),
+    status: Number(res.statusCode || 0),
+    duration_ms: Number(durationMs || 0),
+    ip: String(req.ip || req.connection?.remoteAddress || ''),
+    user_agent: String(req.headers?.['user-agent'] || ''),
+    message: String(message || 'endpoint accessed')
   };
 }
 
 async function sendLog(logsUrl, payload) {
-  if (!logsUrl) {
-    return;
-  }
+  if (!logsUrl) return;
 
   try {
-    // Node 18+ has fetch built-in (you’re on Node 24, so you’re good)
-    await fetch(logsUrl + '/api/logs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+    const base = String(logsUrl).replace(/\/+$/, '');
+    await axios.post(`${base}/api/logs`, payload, { timeout: 3000 });
   } catch (e) {
-    // Never break the request because logging failed
+    // logging must NEVER crash the service
   }
 }
 
-function logEveryRequest(serviceName, logsBaseUrl) {
-  return function logMiddleware(req, res, next) {
+function logEveryRequest(serviceName, logsUrl) {
+  return (req, res, next) => {
     const start = Date.now();
 
     res.on('finish', () => {
-      const payload = buildLogFromRequest(req, res, start, serviceName);
-      sendLog(logsBaseUrl, payload);
+      const durationMs = Date.now() - start;
+      const payload = buildLogPayload(serviceName, req, res, durationMs, 'endpoint accessed');
+      sendLog(logsUrl, payload);
     });
 
     next();
@@ -47,5 +41,7 @@ function logEveryRequest(serviceName, logsBaseUrl) {
 }
 
 module.exports = {
-  logEveryRequest
+  logEveryRequest,
+  buildLogPayload,
+  sendLog
 };
