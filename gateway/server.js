@@ -8,26 +8,35 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 dotenv.config();
 
 const { buildLogPayload, sendLog } = require('./src/logClient');
+
+function requireEnv(name) {
+  const v = process.env[name];
+  if (!v) {
+    throw new Error(`Missing env var ${name}`);
+  }
+  return String(v)
+    .replace(/^"+|"+$/g, '')
+    .trim();
+}
+
+const USERS_URL = requireEnv('USERS_URL');
+const COSTS_URL = requireEnv('COSTS_URL');
 const LOGS_URL = requireEnv('LOGS_URL');
+const ADMIN_URL = requireEnv('ADMIN_URL');
 
 const app = express();
 
 app.use(express.json({ limit: '1mb' }));
 app.use(pinoHttp());
 
+// request logging -> logs service
 app.use((req, res, next) => {
   const start = Date.now();
 
   res.on('finish', () => {
     const durationMs = Date.now() - start;
 
-    const payload = buildLogPayload(
-      'gateway',
-      req,
-      res,
-      durationMs,
-      'endpoint accessed'
-    );
+    const payload = buildLogPayload('gateway', req, res, durationMs, 'endpoint accessed');
 
     sendLog(LOGS_URL, payload);
   });
@@ -39,32 +48,30 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-function requireEnv(name) {
-  const v = process.env[name];
-  if (!v) {
-    throw new Error(`Missing env var ${name}`);
-  }
-  return String(v).replace(/^"+|"+$/g, '').trim();
-}
+app.get('/__debug', (req, res) => {
+  res.json({
+    ok: true,
+    service: 'gateway',
+    time: new Date().toISOString(),
+    users: USERS_URL,
+    costs: COSTS_URL,
+    logs: LOGS_URL,
+    admin: ADMIN_URL,
+  });
+});
 
-const USERS_URL = requireEnv('USERS_URL');
-const COSTS_URL = requireEnv('COSTS_URL');
-const ADMIN_URL = requireEnv('ADMIN_URL');
-
-// This is the important part: when proxying, re-send the JSON body
+// ---- proxy helper (no pathRewrite magic; we control req.url explicitly) ----
 function withJsonBodyForwarding(target) {
   return createProxyMiddleware({
     target,
     changeOrigin: true,
     proxyTimeout: 10000,
     timeout: 10000,
+    logLevel: 'warn',
+
     on: {
       proxyReq: (proxyReq, req, res) => {
-        if (
-          req.method === 'POST' ||
-          req.method === 'PUT' ||
-          req.method === 'PATCH'
-        ) {
+        if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
           if (req.body && Object.keys(req.body).length > 0) {
             const bodyData = JSON.stringify(req.body);
             proxyReq.setHeader('Content-Type', 'application/json');
@@ -72,18 +79,32 @@ function withJsonBodyForwarding(target) {
             proxyReq.write(bodyData);
           }
         }
-      }
-    }
+      },
+    },
   });
 }
 
-// Normal forwarding routes
-app.use('/api/users', withJsonBodyForwarding(USERS_URL));
-app.use('/api/report', withJsonBodyForwarding(COSTS_URL));
-app.use('/api/logs', withJsonBodyForwarding(LOGS_URL));
-app.use('/api/about', withJsonBodyForwarding(ADMIN_URL));
+// ---- routes ----
 
-// /api/add router (validate first, then forward to the correct service)
+// users-service routes
+app.get('/api/users', (req, res, next) => {
+  req.url = '/api/users';
+  return withJsonBodyForwarding(USERS_URL)(req, res, next);
+});
+
+app.get('/api/users/:id', (req, res, next) => {
+  req.url = `/api/users/${encodeURIComponent(req.params.id)}`;
+  return withJsonBodyForwarding(USERS_URL)(req, res, next);
+});
+
+// costs-service report is on "/" (query params)
+app.get('/api/report', (req, res, next) => {
+  const q = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+  req.url = `/api/report${q}`;
+  return withJsonBodyForwarding(COSTS_URL)(req, res, next);
+});
+
+// add endpoint (decide destination)
 app.post('/api/add', (req, res, next) => {
   const body = req.body || {};
 
@@ -99,18 +120,29 @@ app.post('/api/add', (req, res, next) => {
     body.category !== undefined &&
     body.sum !== undefined;
 
-  if (!isUserAdd && !isCostAdd) {
-    return res.status(400).json({
-      id: 4001,
-      message: 'Invalid payload for /api/add'
-    });
-  }
-
   if (isUserAdd) {
+    // users-service expects POST /api/add
+    req.url = '/api/add';
     return withJsonBodyForwarding(USERS_URL)(req, res, next);
   }
 
-  return withJsonBodyForwarding(COSTS_URL)(req, res, next);
+  if (isCostAdd) {
+    // costs-service expects POST /api/add
+    req.url = '/api/add';
+    return withJsonBodyForwarding(COSTS_URL)(req, res, next);
+  }
+
+  return res.status(400).json({ id: 4001, message: 'Invalid payload for /api/add' });
+});
+
+// passthrough helpers
+app.get('/api/logs', (req, res, next) => {
+  req.url = '/api/logs';
+  return withJsonBodyForwarding(LOGS_URL)(req, res, next);
+});
+app.get('/api/about', (req, res, next) => {
+  req.url = '/api/about';
+  return withJsonBodyForwarding(ADMIN_URL)(req, res, next);
 });
 
 // Error handler
