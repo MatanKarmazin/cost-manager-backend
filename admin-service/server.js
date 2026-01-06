@@ -5,7 +5,7 @@ const dotenv = require('dotenv');
 const pinoHttp = require('pino-http');
 const mongoose = require('mongoose');
 
-const { logEveryRequest } = require('./src/logClient'); // <-- import
+const { logEveryRequest } = require('./src/logClient');
 
 dotenv.config();
 
@@ -17,21 +17,22 @@ function requireEnv(name) {
 
 const LOGS_URL = requireEnv('LOGS_URL');
 
-const app = express(); // ✅ app must be created BEFORE app.use
+const app = express();
 
 app.use(express.json({ limit: '1mb' }));
 app.use(pinoHttp());
 
-// ✅ NOW it's safe:
-app.use(logEveryRequest('admin-service', LOGS_URL)); // ✅ correct service name
+app.use(logEveryRequest('admin-service', LOGS_URL));
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-// ... your other routes here ...
+app.use('/', require('./src/routes'));
 
-// error handler last
+// Mount routes (THIS was missing)
+app.use('/', require('./src/routes'));
+
 app.use((err, req, res, next) => {
   res.status(err.status || 500).json({
     id: err.id || 5001,

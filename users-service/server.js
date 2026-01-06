@@ -1,7 +1,6 @@
 'use strict';
 
 const { logEveryRequest } = require('./src/logClient');
-
 const express = require('express');
 const dotenv = require('dotenv');
 const mongoose = require('mongoose');

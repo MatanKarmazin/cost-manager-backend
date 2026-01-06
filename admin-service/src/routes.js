@@ -1,12 +1,16 @@
 'use strict';
 
 const express = require('express');
-
 const router = express.Router();
 
-/*   Placeholder routes; each service will replace with its own endpoints */
-router.get('/not-implemented', (req, res) => {
-  res.status(501).json({ id: 5010, message: 'Not implemented in this service yet' });
+// Put your real names here (ONLY first_name + last_name)
+const TEAM = [
+  { first_name: 'Matan', last_name: '...' },
+  { first_name: 'Eric', last_name: '...' }
+];
+
+router.get('/api/about', (req, res) => {
+  res.json(TEAM.map((m) => ({ first_name: m.first_name, last_name: m.last_name })));
 });
 
 module.exports = router;
