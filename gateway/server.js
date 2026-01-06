@@ -1,7 +1,5 @@
 'use strict';
 
-const { logEveryRequest } = require('./src/logClient');
-
 const express = require('express');
 const dotenv = require('dotenv');
 const pinoHttp = require('pino-http');
@@ -13,20 +11,17 @@ const app = express();
 
 app.use(express.json({ limit: '1mb' }));
 app.use(pinoHttp());
-app.use(logEveryRequest('gateway', process.env.LOGS_URL));
 
-// Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-// Ensure env exists (clear error message)
 function requireEnv(name) {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error('Missing env var: ' + name);
+  const v = process.env[name];
+  if (!v) {
+    throw new Error(`Missing env var ${name}`);
   }
-  return value;
+  return String(v).replace(/^"+|"+$/g, '').trim();
 }
 
 const USERS_URL = requireEnv('USERS_URL');
@@ -34,28 +29,39 @@ const COSTS_URL = requireEnv('COSTS_URL');
 const LOGS_URL = requireEnv('LOGS_URL');
 const ADMIN_URL = requireEnv('ADMIN_URL');
 
-// Create a proxy that only runs for a specific /api/... prefix
-function makePrefixProxy(prefix, target) {
+// This is the important part: when proxying, re-send the JSON body
+function withJsonBodyForwarding(target) {
   return createProxyMiddleware({
     target,
     changeOrigin: true,
-    logLevel: 'silent',
     proxyTimeout: 10000,
-
-    // Only proxy requests that start with the prefix
-    pathFilter: function pathFilter(pathname, req) {
-      return typeof pathname === 'string' && pathname.startsWith(prefix);
+    timeout: 10000,
+    on: {
+      proxyReq: (proxyReq, req, res) => {
+        if (
+          req.method === 'POST' ||
+          req.method === 'PUT' ||
+          req.method === 'PATCH'
+        ) {
+          if (req.body && Object.keys(req.body).length > 0) {
+            const bodyData = JSON.stringify(req.body);
+            proxyReq.setHeader('Content-Type', 'application/json');
+            proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+            proxyReq.write(bodyData);
+          }
+        }
+      }
     }
   });
 }
 
-// Forward routes (keeps the full original path, e.g. /api/logs stays /api/logs)
-app.use(makePrefixProxy('/api/users', USERS_URL));
-app.use(makePrefixProxy('/api/report', COSTS_URL));
-app.use(makePrefixProxy('/api/logs', LOGS_URL));
-app.use(makePrefixProxy('/api/about', ADMIN_URL));
+// Normal forwarding routes
+app.use('/api/users', withJsonBodyForwarding(USERS_URL));
+app.use('/api/report', withJsonBodyForwarding(COSTS_URL));
+app.use('/api/logs', withJsonBodyForwarding(LOGS_URL));
+app.use('/api/about', withJsonBodyForwarding(ADMIN_URL));
 
-// /api/add router: decide user vs cost by body fields, then forward to correct service
+// /api/add router (validate first, then forward to the correct service)
 app.post('/api/add', (req, res, next) => {
   const body = req.body || {};
 
@@ -71,45 +77,28 @@ app.post('/api/add', (req, res, next) => {
     body.category !== undefined &&
     body.sum !== undefined;
 
+  if (!isUserAdd && !isCostAdd) {
+    return res.status(400).json({
+      id: 4001,
+      message: 'Invalid payload for /api/add'
+    });
+  }
+
   if (isUserAdd) {
-    return createProxyMiddleware({
-      target: USERS_URL,
-      changeOrigin: true,
-      logLevel: 'silent',
-      proxyTimeout: 10000
-    })(req, res, next);
+    return withJsonBodyForwarding(USERS_URL)(req, res, next);
   }
 
-  if (isCostAdd) {
-    return createProxyMiddleware({
-      target: COSTS_URL,
-      changeOrigin: true,
-      logLevel: 'silent',
-      proxyTimeout: 10000
-    })(req, res, next);
-  }
-
-  return res.status(400).json({
-    id: 4001,
-    message: 'Invalid payload for /api/add'
-  });
+  return withJsonBodyForwarding(COSTS_URL)(req, res, next);
 });
 
 // Error handler
 app.use((err, req, res, next) => {
-  if (req.log && req.log.error) {
-    req.log.error({ err }, 'gateway error');
-  }
-
-  res.status(500).json({
-    id: 5002,
-    message: err && err.message ? err.message : 'Gateway error'
-  });
+  req.log.error({ err }, 'gateway error');
+  res.status(500).json({ id: 5002, message: 'Gateway error' });
 });
 
 const port = Number(process.env.PORT || 3000);
 
 app.listen(port, () => {
-  // eslint-disable-next-line no-console
   console.log(`gateway listening on port ${port}`);
 });
