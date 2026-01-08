@@ -5,8 +5,8 @@ const router = express.Router();
 
 // Put your real names here (ONLY first_name + last_name)
 const TEAM = [
-  { first_name: 'Matan', last_name: '...' },
-  { first_name: 'Eric', last_name: '...' }
+  { first_name: 'Matan', last_name: 'KarMazin' },
+  { first_name: 'Eric', last_name: 'Rosenberg' }
 ];
 
 router.get('/api/about', (req, res) => {
