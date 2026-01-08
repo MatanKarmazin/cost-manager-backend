@@ -1,12 +1,31 @@
 'use strict';
 
 const express = require('express');
+const mongoose = require('mongoose');
+
 const { Cost } = require('../models/cost.model');
 const { Report } = require('../models/report.model');
+const { User } = require('../models/user.model');
 
 const router = express.Router();
 
 const CATEGORIES = ['food', 'health', 'housing', 'sports', 'education'];
+
+/* ============================
+   User existence check
+============================ */
+
+const UserSchema = new mongoose.Schema({}, { collection: 'users', strict: false });
+const User = mongoose.models.User || mongoose.model('User', UserSchema);
+
+async function userExistsByNumericId(userid) {
+  const hit = await User.exists({ userid });
+  return !!hit;
+}
+
+/* ============================
+   Helpers
+============================ */
 
 function httpError(status, id, message) {
   const err = new Error(message);
@@ -21,17 +40,14 @@ function isPast(d) {
 
 function isMonthInPast(year, month) {
   const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1;
-
-  if (year < currentYear) return true;
-  if (year > currentYear) return false;
-  return month < currentMonth;
+  if (year < now.getFullYear()) return true;
+  if (year > now.getFullYear()) return false;
+  return month < now.getMonth() + 1;
 }
 
 function makeMonthRange(year, month) {
-  const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
-  const end = new Date(Date.UTC(year, month, 1, 0, 0, 0));
+  const start = new Date(Date.UTC(year, month - 1, 1));
+  const end = new Date(Date.UTC(year, month));
   return { start, end };
 }
 
@@ -40,7 +56,7 @@ function buildEmptyReport(userid, year, month) {
     userid,
     year,
     month,
-    costs: CATEGORIES.map((c) => ({ [c]: [] }))
+    costs: CATEGORIES.map(c => ({ [c]: [] }))
   };
 }
 
@@ -48,12 +64,7 @@ async function computeReport(userid, year, month) {
   const { start, end } = makeMonthRange(year, month);
 
   const rows = await Cost.aggregate([
-    {
-      $match: {
-        userid: userid,
-        created_at: { $gte: start, $lt: end }
-      }
-    },
+    { $match: { userid, created_at: { $gte: start, $lt: end } } },
     {
       $project: {
         category: 1,
@@ -71,32 +82,48 @@ async function computeReport(userid, year, month) {
   ]);
 
   const report = buildEmptyReport(userid, year, month);
-
   const byCategory = {};
+
   for (const r of rows) {
-    byCategory[String(r._id || '').toLowerCase()] = r.items || [];
+    byCategory[r._id] = r.items || [];
   }
 
-  report.costs = CATEGORIES.map((c) => ({
-    [c]: Array.isArray(byCategory[c]) ? byCategory[c] : []
-  }));
-
+  report.costs = CATEGORIES.map(c => ({ [c]: byCategory[c] || [] }));
   return report;
 }
 
-// POST /api/add  (Add cost item)
+/* ============================Routes============================ */
+
+// POST /api/add
 router.post('/api/add', async (req, res, next) => {
   try {
     const body = req.body || {};
 
+    // 1) Read inputs
     const userid = Number(body.userid);
     const description = String(body.description || '').trim();
     const category = String(body.category || '').trim().toLowerCase();
     const sum = Number(body.sum);
 
+    // 2) Debug + validation + user existence check (PASTE LOGS HERE)
+    console.log('[ADD COST] handler hit');
+
     if (!Number.isFinite(userid)) {
+      console.error('[ADD COST] userid not a number:', body.userid);
       throw httpError(400, 4001, 'userid must be a number');
     }
+
+    const exists = await userExistsByNumericId(userid);
+    console.log('[ADD COST] userExistsByNumericId =>', exists, 'for userid=', userid);
+
+    if (!exists) {
+      console.error('[ADD COST] USER NOT FOUND, blocking insert. userid=', userid);
+      return res.status(404).json({ error: `User ${userid} does not exist` }); // TEMP stop here
+    }
+
+    console.log('[ADD COST] about to insert cost...');
+
+    // Continue with your existing validation
     if (!description) {
       throw httpError(400, 4002, 'description is required');
     }
@@ -118,6 +145,7 @@ router.post('/api/add', async (req, res, next) => {
       throw httpError(400, 4006, 'Cannot add costs in the past');
     }
 
+    // 3) Insert to DB (THIS MUST NOT RUN when user doesn't exist)
     const doc = await Cost.create({
       userid,
       description,
@@ -138,36 +166,38 @@ router.post('/api/add', async (req, res, next) => {
   }
 });
 
-// GET /api/report?id=123123&year=2025&month=11
+
+// GET /api/report?id=123123&year=2026&month=1
 router.get('/api/report', async (req, res, next) => {
   try {
-    const id = Number(req.query.id);
+    const userid = Number(req.query.id);
     const year = Number(req.query.year);
     const month = Number(req.query.month);
 
-    if (!Number.isFinite(id)) throw httpError(400, 4001, 'id must be a number');
-    if (!Number.isFinite(year) || year < 1970 || year > 3000) {
-      throw httpError(400, 4002, 'year is invalid');
+    if (!Number.isFinite(year) || year < 1970 || year > 3000) throw httpError(400, 4002, 'year is invalid');
+    if (!Number.isFinite(month) || month < 1 || month > 12) throw httpError(400, 4003, 'month is invalid');
+    if (!Number.isFinite(userid)) {
+      console.error(`[ADD COST] Invalid userid (not a number):`, body.userid);
+      throw httpError(400, 4001, 'userid must be a number');
     }
-    if (!Number.isFinite(month) || month < 1 || month > 12) {
-      throw httpError(400, 4003, 'month is invalid');
+    const exists = await userExistsByNumericId(userid);
+    if (!exists) {
+      console.error(`[ADD COST] Invalid userid (user does not exist):`, userid);
+      throw httpError(404, 4007, `User ${userid} does not exist`);
     }
 
     const past = isMonthInPast(year, month);
 
-    // computed pattern cache
     if (past) {
-      const cached = await Report.findOne({ userid: id, year, month }).lean();
-      if (cached && cached.report_json) {
-        return res.json(cached.report_json);
-      }
+      const cached = await Report.findOne({ userid, year, month }).lean();
+      if (cached?.report_json) return res.json(cached.report_json);
     }
 
-    const reportJson = await computeReport(id, year, month);
+    const reportJson = await computeReport(userid, year, month);
 
     if (past) {
       await Report.updateOne(
-        { userid: id, year, month },
+        { userid, year, month },
         { $set: { report_json: reportJson, created_at: new Date() } },
         { upsert: true }
       );
