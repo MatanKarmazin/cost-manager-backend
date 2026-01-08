@@ -15,9 +15,6 @@ const CATEGORIES = ['food', 'health', 'housing', 'sports', 'education'];
    User existence check
 ============================ */
 
-const UserSchema = new mongoose.Schema({}, { collection: 'users', strict: false });
-const User = mongoose.models.User || mongoose.model('User', UserSchema);
-
 async function userExistsByNumericId(userid) {
   const hit = await User.exists({ userid });
   return !!hit;
@@ -56,7 +53,7 @@ function buildEmptyReport(userid, year, month) {
     userid,
     year,
     month,
-    costs: CATEGORIES.map(c => ({ [c]: [] }))
+    costs: CATEGORIES.map((c) => ({ [c]: [] })),
   };
 }
 
@@ -70,15 +67,15 @@ async function computeReport(userid, year, month) {
         category: 1,
         sum: 1,
         description: 1,
-        day: { $dayOfMonth: '$created_at' }
-      }
+        day: { $dayOfMonth: '$created_at' },
+      },
     },
     {
       $group: {
         _id: '$category',
-        items: { $push: { sum: '$sum', description: '$description', day: '$day' } }
-      }
-    }
+        items: { $push: { sum: '$sum', description: '$description', day: '$day' } },
+      },
+    },
   ]);
 
   const report = buildEmptyReport(userid, year, month);
@@ -88,7 +85,7 @@ async function computeReport(userid, year, month) {
     byCategory[r._id] = r.items || [];
   }
 
-  report.costs = CATEGORIES.map(c => ({ [c]: byCategory[c] || [] }));
+  report.costs = CATEGORIES.map((c) => ({ [c]: byCategory[c] || [] }));
   return report;
 }
 
@@ -102,7 +99,9 @@ router.post('/api/add', async (req, res, next) => {
     // 1) Read inputs
     const userid = Number(body.userid);
     const description = String(body.description || '').trim();
-    const category = String(body.category || '').trim().toLowerCase();
+    const category = String(body.category || '')
+      .trim()
+      .toLowerCase();
     const sum = Number(body.sum);
 
     // 2) Debug + validation + user existence check (PASTE LOGS HERE)
@@ -113,8 +112,13 @@ router.post('/api/add', async (req, res, next) => {
       throw httpError(400, 4001, 'userid must be a number');
     }
 
+    // Requirement: user must exist
     const exists = await userExistsByNumericId(userid);
     console.log('[ADD COST] userExistsByNumericId =>', exists, 'for userid=', userid);
+
+    if (!exists) {
+      throw httpError(400, 4007, `userid ${userid} does not exist`);
+    }
 
     if (!exists) {
       console.error('[ADD COST] USER NOT FOUND, blocking insert. userid=', userid);
@@ -151,7 +155,7 @@ router.post('/api/add', async (req, res, next) => {
       description,
       category,
       sum,
-      created_at: createdAt
+      created_at: createdAt,
     });
 
     return res.status(201).json({
@@ -159,13 +163,12 @@ router.post('/api/add', async (req, res, next) => {
       description: doc.description,
       category: doc.category,
       sum: doc.sum,
-      created_at: doc.created_at
+      created_at: doc.created_at,
     });
   } catch (e) {
     return next(e);
   }
 });
-
 
 // GET /api/report?id=123123&year=2026&month=1
 router.get('/api/report', async (req, res, next) => {
@@ -174,12 +177,15 @@ router.get('/api/report', async (req, res, next) => {
     const year = Number(req.query.year);
     const month = Number(req.query.month);
 
-    if (!Number.isFinite(year) || year < 1970 || year > 3000) throw httpError(400, 4002, 'year is invalid');
-    if (!Number.isFinite(month) || month < 1 || month > 12) throw httpError(400, 4003, 'month is invalid');
+    if (!Number.isFinite(year) || year < 1970 || year > 3000)
+      throw httpError(400, 4002, 'year is invalid');
+    if (!Number.isFinite(month) || month < 1 || month > 12)
+      throw httpError(400, 4003, 'month is invalid');
     if (!Number.isFinite(userid)) {
-      console.error(`[ADD COST] Invalid userid (not a number):`, body.userid);
+      console.error(`[REPORT] Invalid userid (not a number):`, req.query.id);
       throw httpError(400, 4001, 'userid must be a number');
     }
+
     const exists = await userExistsByNumericId(userid);
     if (!exists) {
       console.error(`[ADD COST] Invalid userid (user does not exist):`, userid);
@@ -199,7 +205,7 @@ router.get('/api/report', async (req, res, next) => {
       await Report.updateOne(
         { userid, year, month },
         { $set: { report_json: reportJson, created_at: new Date() } },
-        { upsert: true }
+        { upsert: true },
       );
     }
 
