@@ -3,9 +3,8 @@
 const express = require('express');
 const router = express.Router();
 
-// Put your real names here (ONLY first_name + last_name)
 const TEAM = [
-  { first_name: 'Matan', last_name: 'KarMazin' },
+  { first_name: 'Matan', last_name: 'Kar Mazin' },
   { first_name: 'Eric', last_name: 'Rosenberg' }
 ];
 
