@@ -79,17 +79,23 @@ app.use((err, req, res, next) => {
 
 const port = Number(process.env.PORT || 3001);
 
-/*   Connect to MongoDB Atlas */
-mongoose
-  .connect(process.env.MONGO_URI, { dbName: process.env.DB_NAME || 'cost_manager' })
-  .then(() => {
-    app.listen(port, () => {
-      // eslint-disable-next-line no-console
-      console.log(`users-service listening on port ${port}`);
-    });
-  })
-  .catch((e) => {
+async function start() {
+  await mongoose.connect(process.env.MONGO_URI, {
+    dbName: process.env.DB_NAME || 'cost_manager'
+  });
+
+  app.listen(port, () => {
+    // eslint-disable-next-line no-console
+    console.log(`users-service listening on port ${port}`);
+  });
+}
+
+module.exports = { app, start };
+
+if (require.main === module) {
+  start().catch((e) => {
     // eslint-disable-next-line no-console
     console.error('mongo connection failed', e);
     process.exit(1);
   });
+}

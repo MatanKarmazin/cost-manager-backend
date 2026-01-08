@@ -10,12 +10,16 @@ const userSchema = new mongoose.Schema(
     id: { type: Number, required: true, unique: true, index: true },
     first_name: { type: String, required: true },
     last_name: { type: String, required: true },
-    birthday: { type: Date, required: true }
+    birthday: { type: Date, required: true },
+
+    // used only by automated tests so we can safely clean up
+    __testRunId: { type: String, index: true }
   },
   {
     versionKey: false
   }
 );
+
 
 /*   Keep collection name exactly "users" */
 const User = mongoose.model('User', userSchema, 'users');

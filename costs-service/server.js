@@ -51,9 +51,6 @@ app.get('/health', (req, res) => {
 
 app.use('/', require('./src/routes'));
 
-// Mount routes (THIS was missing)
-app.use('/', require('./src/routes'));
-
 // Centralized error handler
 app.use((err, req, res, next) => {
   res.status(err.status || 500).json({

@@ -15,3 +15,5 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 startAll.bat
+testAll.bat
+testAllLocalVersion.bat
