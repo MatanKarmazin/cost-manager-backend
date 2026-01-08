@@ -1,7 +1,7 @@
 'use strict';
 
 const request = require('supertest');
-const { app } = require('../server'); // <-- change if your entry file name is different
+const { app } = require('../server');
 
 // Unique tag so cleanup deletes ONLY our test docs
 const TEST_RUN_ID = `jest-${Date.now()}`;
