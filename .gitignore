@@ -1,19 +1,24 @@
-# Dependency directories
-node_modules/
-
-# Environment variables (contains secrets like API keys)
-.env
-.env
-.env.*
-
 # Debug logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Operating system files
+# Dependencies
+node_modules/
+
+# Environment Variables
+.env
+.env.*
+
+# OS & System Files
 .DS_Store
 Thumbs.db
+
+# Local Scripts
 startAll.bat
 testAll.bat
 testAllLocalVersion.bat
+
+# Local Files / Archives
+matan_kar_mazin.docx
+project.zip
