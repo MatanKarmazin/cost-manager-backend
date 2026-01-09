@@ -6,7 +6,7 @@ Designed as an academic project.
 
 ---
 
-## 🚀 What This Project Demonstrates
+## What This Project Demonstrates
 
 - Microservices architecture in Node.js
 - API Gateway pattern
@@ -19,7 +19,7 @@ Designed as an academic project.
 
 ---
 
-## 🧩 Architecture Overview
+## Architecture Overview
 
 The system is composed of independent services:
 
@@ -33,7 +33,7 @@ Each service runs independently and communicates over HTTP.
 
 ---
 
-## 🛠 Tech Stack
+## Tech Stack
 
 - Node.js
 - Express
@@ -43,7 +43,7 @@ Each service runs independently and communicates over HTTP.
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```text
 project-backend/
@@ -62,7 +62,7 @@ Each service includes:
 
 ---
 
-## ▶️ Running the Project (Local)
+## Running the Project (Local)
 
 ```bash
 npm install
@@ -74,10 +74,17 @@ The **gateway** is the only service exposed to clients.
 
 ---
 
-## 🧪 Testing
+## Testing
 
 Tests are written with **Jest** and run per service:
 
 ```bash
 npm test
 ```
+
+---
+
+## Authors
+
+- **Matan Karmazin**
+- **Eric Rosenberg**
