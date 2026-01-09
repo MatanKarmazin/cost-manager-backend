@@ -1,23 +1,83 @@
-# Cost Manager – Backend
+# Cost Manager Backend – Node.js Microservices
 
-RESTful backend service for an expense management application.
+A Node.js backend project built using a **microservices architecture**, demonstrating service separation, API gateway design, and backend engineering best practices.
 
-## Overview
-This project implements the server-side logic of the Cost Manager system, responsible for handling business logic, data persistence, and API communication with the frontend client.
+Designed as an academic project.
 
-## Key Features
+---
+
+## 🚀 What This Project Demonstrates
+
+- Microservices architecture in Node.js
+- API Gateway pattern
 - RESTful API design
-- Expense and category management
-- Database integration
-- Clear separation of concerns
+- Inter-service communication
+- Centralized logging
+- MongoDB data modeling
+- Automated testing per service
+- Environment-based configuration
 
-## Technologies
+---
+
+## 🧩 Architecture Overview
+
+The system is composed of independent services:
+
+- **Gateway** – Single entry point, routes requests
+- **Users Service** – User management
+- **Costs Service** – Cost creation and retrieval
+- **Logs Service** – Centralized request logging
+- **Admin Service** – Aggregation and admin operations
+
+Each service runs independently and communicates over HTTP.
+
+---
+
+## 🛠 Tech Stack
+
 - Node.js
 - Express
-- Database: MongoDB / SQL (adjust if needed)
+- MongoDB & Mongoose
+- Jest
+- dotenv
 
-## Status
-🚧 In active development
+---
 
-## Related Project
-- Frontend (React): https://github.com/MatanKarmazin/cost-manager-frontend
+## 📂 Project Structure
+
+```text
+project-backend/
+├── gateway/
+├── users-service/
+├── costs-service/
+├── logs-service/
+├── admin-service/
+````
+
+Each service includes:
+
+* `server.js` / `app.js`
+* Business logic (`src/`)
+* Automated tests
+
+---
+
+## ▶️ Running the Project (Local)
+
+```bash
+npm install
+npm start
+```
+
+Run each service in its own directory.
+The **gateway** is the only service exposed to clients.
+
+---
+
+## 🧪 Testing
+
+Tests are written with **Jest** and run per service:
+
+```bash
+npm test
+```
