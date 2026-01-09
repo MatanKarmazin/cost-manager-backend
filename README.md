@@ -2,8 +2,6 @@
 
 A Node.js backend project built using a **microservices architecture**, demonstrating service separation, API gateway design, and backend engineering best practices.
 
-Designed as an academic project.
-
 ---
 
 ## What This Project Demonstrates
