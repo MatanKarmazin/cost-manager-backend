@@ -1,18 +1,17 @@
 # Cost Manager Backend – Node.js Microservices
 
-A Node.js backend project built using a **microservices architecture**, demonstrating service separation, API gateway design, and backend engineering best practices.
+A Node.js backend project built using a **microservices architecture**, demonstrating service separation and backend engineering best practices.
 
 ---
 
 ## What This Project Demonstrates
 
-- Microservices architecture in Node.js
-- API Gateway pattern
-- RESTful API design
-- Inter-service communication
-- Centralized logging
-- MongoDB data modeling
-- Automated testing per service
+- Microservices architecture in Node.js  
+- RESTful API design  
+- Inter-service communication  
+- Centralized logging  
+- MongoDB data modeling  
+- Automated testing per service  
 - Environment-based configuration
 
 ---
@@ -21,13 +20,12 @@ A Node.js backend project built using a **microservices architecture**, demonstr
 
 The system is composed of independent services:
 
-- **Gateway** – Single entry point, routes requests
 - **Users Service** – User management
 - **Costs Service** – Cost creation and retrieval
 - **Logs Service** – Centralized request logging
 - **Admin Service** – Aggregation and admin operations
 
-Each service runs independently and communicates over HTTP.
+Each service runs independently and communicates with other services directly over HTTP.
 
 ---
 
@@ -45,7 +43,6 @@ Each service runs independently and communicates over HTTP.
 
 ```text
 project-backend/
-├── gateway/
 ├── users-service/
 ├── costs-service/
 ├── logs-service/
@@ -62,13 +59,21 @@ Each service includes:
 
 ## Running the Project (Local)
 
+Each service runs independently.
+From inside each service directory:
+
 ```bash
 npm install
 npm start
 ```
 
-Run each service in its own directory.
-The **gateway** is the only service exposed to clients.
+Default ports:
+- Users Service → 3001
+- Costs Service → 3002
+- Logs Service → 3003
+- Admin Service → 3004
+
+Clients and services communicate directly with the relevant service endpoints.
 
 ---
 
