@@ -3,20 +3,13 @@
 const express = require('express');
 const mongoose = require('mongoose');
 
+const usersClient = require('./usersClient');
 const { Cost } = require('../models/cost.model');
 const { Report } = require('../models/report.model');
 
 const router = express.Router();
-
 const CATEGORIES = ['food', 'health', 'housing', 'sports', 'education'];
 
-/* ============================
-   User existence check
-============================ */
-const USERS_URL = (process.env.USERS_URL || '').replace(/\/+$/, '');
-if (!USERS_URL) {
-  console.warn('[COSTS] Missing USERS_URL env var. User existence checks will fail.');
-}
 
 /* ============================
    Helpers
@@ -31,27 +24,6 @@ function httpError(status, id, message) {
 
 function isPast(d) {
   return d.getTime() < Date.now();
-}
-
-async function userExistsViaUsersService(userid) {
-  if (!USERS_URL) return false;
-
-  const url = `${USERS_URL}/api/users/${encodeURIComponent(userid)}`;
-
-  try {
-    const resp = await fetch(url, { method: 'GET' });
-
-    if (resp.status === 200) return true;
-    if (resp.status === 404) return false;
-
-    // unexpected: users-service error, auth, etc.
-    const text = await resp.text().catch(() => '');
-    console.error('[COSTS] users-service unexpected response:', resp.status, text);
-    throw httpError(502, 5007, 'users-service check failed');
-  } catch (e) {
-    console.error('[COSTS] failed calling users-service:', e.message);
-    throw httpError(502, 5008, 'users-service unreachable');
-  }
 }
 
 function isMonthInPast(year, month) {
@@ -132,7 +104,7 @@ router.post('/api/add', async (req, res, next) => {
     }
 
     // Requirement: user must exist
-    const exists = await userExistsViaUsersService(userid);
+    const exists = await usersClient.userExistsViaUsersService(userid, { httpError });
     console.log('[ADD COST] userExistsByNumericId =>', exists, 'for userid=', userid);
 
     if (!exists) {
@@ -201,7 +173,7 @@ router.get('/api/report', async (req, res, next) => {
       throw httpError(400, 4001, 'userid must be a number');
     }
 
-    const exists = await userExistsViaUsersService(userid);
+    const exists = await usersClient.userExistsViaUsersService(userid, { httpError });
     if (!exists) {
       console.error(`[ADD COST] Invalid userid (user does not exist):`, userid);
       throw httpError(404, 4007, `User ${userid} does not exist`);

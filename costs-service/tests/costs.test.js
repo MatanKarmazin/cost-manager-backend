@@ -1,6 +1,12 @@
 'use strict';
 
 const request = require('supertest');
+
+jest.mock('../src/usersClient', () => ({
+  userExistsViaUsersService: jest.fn(),
+}));
+
+const { userExistsViaUsersService } = require('../src/usersClient');
 const { app } = require('../app');
 const { connectTestDb, clearTestDb, closeTestDb } = require('./testDB');
 
@@ -9,6 +15,10 @@ function plusDays(n) {
 }
 
 describe('costs-service', () => {
+  beforeEach(() => {
+    userExistsViaUsersService.mockResolvedValue(true);
+  });
+
   beforeAll(async () => {
     await connectTestDb();
   });
@@ -28,7 +38,7 @@ describe('costs-service', () => {
       description: 'choco',
       category: 'food',
       sum: 12,
-      created_at: createdAt.toISOString()
+      created_at: createdAt.toISOString(),
     };
 
     const res = await request(app).post('/api/add').send(payload);
@@ -47,7 +57,7 @@ describe('costs-service', () => {
       description: 'old',
       category: 'food',
       sum: 1,
-      created_at: new Date(Date.now() - 60 * 1000).toISOString()
+      created_at: new Date(Date.now() - 60 * 1000).toISOString(),
     };
 
     const res = await request(app).post('/api/add').send(payload);
@@ -61,7 +71,7 @@ describe('costs-service', () => {
       userid: 1,
       description: 'x',
       category: 'cars',
-      sum: 1
+      sum: 1,
     };
 
     const res = await request(app).post('/api/add').send(payload);
@@ -81,7 +91,7 @@ describe('costs-service', () => {
       description: 'milk',
       category: 'food',
       sum: 8,
-      created_at: createdAt.toISOString()
+      created_at: createdAt.toISOString(),
     });
 
     await request(app).post('/api/add').send({
@@ -89,7 +99,7 @@ describe('costs-service', () => {
       description: 'book',
       category: 'education',
       sum: 50,
-      created_at: createdAt.toISOString()
+      created_at: createdAt.toISOString(),
     });
 
     const res = await request(app).get(`/api/report?id=123123&year=${y}&month=${m}`);
@@ -102,7 +112,7 @@ describe('costs-service', () => {
 
     const keys = res.body.costs.map((o) => Object.keys(o)[0]);
     expect(keys).toEqual(
-      expect.arrayContaining(['food', 'health', 'housing', 'sports', 'education'])
+      expect.arrayContaining(['food', 'health', 'housing', 'sports', 'education']),
     );
 
     const foodObj = res.body.costs.find((o) => Object.keys(o)[0] === 'food');

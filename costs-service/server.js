@@ -4,11 +4,11 @@ const express = require('express');
 const dotenv = require('dotenv');
 const mongoose = require('mongoose');
 const pinoHttp = require('pino-http');
+dotenv.config();
 console.log('[COSTS] USERS_URL =', process.env.USERS_URL);
 
 const { logEveryRequest, buildLogPayload, sendLog } = require('./src/logClient');
 
-dotenv.config();
 
 const LOGS_URL = (process.env.LOGS_URL || '').trim();
 

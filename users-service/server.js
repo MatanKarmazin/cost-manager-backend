@@ -36,28 +36,21 @@ app.use(
   })
 );
 
-app.use((req, res, next) => {
-  const start = Date.now();
+if (process.env.NODE_ENV !== 'test') {
+  app.use((req, res, next) => {
+    const start = Date.now();
 
-  res.on('finish', () => {
-    const durationMs = Date.now() - start;
+    res.on('finish', () => {
+      const durationMs = Date.now() - start;
+      const payload = buildLogPayload('users-service', req, res, durationMs, 'endpoint accessed');
+      sendLog(LOGS_URL, payload);
+    });
 
-    const payload = buildLogPayload(
-      'users-service',
-      req,
-      res,
-      durationMs,
-      'endpoint accessed'
-    );
-
-    sendLog(LOGS_URL, payload);
+    next();
   });
 
-  next();
-});
-
-
-app.use(logEveryRequest('users-service', LOGS_URL));
+  app.use(logEveryRequest('users-service', LOGS_URL));
+}
 
 /*   Health check endpoint */
 app.get('/health', (req, res) => {
